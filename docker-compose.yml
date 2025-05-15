@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  depression-detection:
+    build: .
+    container_name: depression-detection
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+      - ./exports:/app/exports
+    environment:
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+    restart: unless-stopped

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Depression Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        .container {
+            max-width: 800px;
+            margin-top: 2rem;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+        .card-header {
+            background-color: #6c757d;
+            color: white;
+            font-weight: 600;
+            border-top-left-radius: 10px !important;
+            border-top-right-radius: 10px !important;
+        }
+        .meter {
+            height: 20px;
+            position: relative;
+            background: #f3f3f3;
+            border-radius: 25px;
+            padding: 0;
+            box-shadow: inset 0 -1px 1px rgba(255, 255, 255, 0.3);
+        }
+        .meter > span {
+            display: block;
+            height: 100%;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: width 0.8s ease;
+        }
+        .low { background-color: #28a745; }
+        .mild { background-color: #ffc107; }
+        .moderate { background-color: #fd7e14; }
+        .high { background-color: #dc3545; }
+        .severe { background-color: #6f42c1; }
+        
+        #transcriptBox {
+            min-height: 100px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        #analysisResults {
+            min-height: 200px;
+        }
+        .feature-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        .audio-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .btn-record {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #dc3545;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        .btn-record:hover {
+            transform: scale(1.05);
+            background-color: #c82333;
+        }
+        .btn-record[disabled] {
+            background-color: #6c757d;
+            opacity: 0.65;
+        }
+        .recording-indicator {
+            width: 10px;
+            height: 10px;
+            background-color: #dc3545;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: blink 1s infinite;
+            display: none;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        .status-text {
+            font-weight: 500;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Real-time Depression Detection</h1>
+        <p class="text-center text-muted mb-4">
+            This system analyzes speech patterns in real-time to detect potential signs of depression.
+            <br><small>Using Deepgram Nova-3 speech recognition and linguistic analysis.</small>
+        </p>
+        
+        <div class="card mb-3">
+            <div class="card-header">
+                <span>Deepgram API Key Setup</span>
+            </div>
+            <div class="card-body">
+                <form id="apiKeyForm">
+                    <div class="mb-3">
+                        <label for="apiKey" class="form-label">Deepgram API Key</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="apiKey" placeholder="Enter your Deepgram API key" required>
+                            <button class="btn btn-outline-secondary" type="button" id="toggleApiKey">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="form-text">Your API key is stored locally in your browser and never sent to our servers.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save API Key</button>
+                </form>
+                <div class="alert alert-success mt-3" id="apiKeySaved" style="display: none;">
+                    API key saved successfully!
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header d-flex align-items-center">
+                <div class="recording-indicator" id="recordingIndicator"></div>
+                <span>Voice Input</span>
+                <span class="status-text" id="statusText">Ready</span>
+            </div>
+            <div class="card-body">
+                <div class="audio-controls">
+                    <button class="btn btn-record" id="startButton" title="Start Recording">
+                        <i class="bi bi-mic-fill"></i>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 5a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+                            <path d="M8 0a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V3a3 3 0 0 0-3-3z"/>
+                            <path d="M14 8.5c0 2.345-1.73 4.288-4 4.63V15H9v-1.87c-2.27-.342-4-2.285-4-4.63V8h1v.5c0 1.93 1.57 3.5 3.5 3.5S13 10.43 13 8.5V8h1v.5z"/>
+                        </svg>
+                    </button>
+                    <button class="btn btn-record" id="stopButton" disabled title="Stop Recording">
+                        <i class="bi bi-stop-fill"></i>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M3.5 3.5A1.5 1.5 0 0 1 5 2h6a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5v-9z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="alert alert-info" id="instructions">
+                    <strong>Instructions:</strong> Click the microphone button and speak naturally. Your speech will be analyzed in real-time for potential signs of depression.
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Transcript</div>
+            <div class="card-body">
+                <div id="transcriptBox" class="p-3 bg-light rounded">
+                    <p class="text-muted">Transcribed speech will appear here...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Depression Risk Analysis</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Depression Risk Score:</label>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="meter flex-grow-1 me-2">
+                            <span id="scoreBar" style="width: 0%"></span>
+                        </div>
+                        <span id="scoreText">0%</span>
+                    </div>
+                    <div class="d-flex justify-content-between small text-muted px-2">
+                        <span>Low</span>
+                        <span>Mild</span>
+                        <span>Moderate</span>
+                        <span>High</span>
+                        <span>Severe</span>
+                    </div>
+                </div>
+                
+                <div id="analysisResults" class="p-3 bg-light rounded">
+                    <p class="text-muted">Analysis results will appear here as you speak...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert alert-warning mt-4">
+            <strong>Disclaimer:</strong> This tool is for informational purposes only and is not a diagnostic tool. If you are concerned about depression or any mental health condition, please consult a qualified healthcare professional.
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const startButton = document.getElementById('startButton');
+            const stopButton = document.getElementById('stopButton');
+            const transcriptBox = document.getElementById('transcriptBox');
+            const analysisResults = document.getElementById('analysisResults');
+            const scoreBar = document.getElementById('scoreBar');
+            const scoreText = document.getElementById('scoreText');
+            const recordingIndicator = document.getElementById('recordingIndicator');
+            const statusText = document.getElementById('statusText');
+            const apiKeyForm = document.getElementById('apiKeyForm');
+            const apiKeyInput = document.getElementById('apiKey');
+            const toggleApiKeyBtn = document.getElementById('toggleApiKey');
+            const apiKeySavedAlert = document.getElementById('apiKeySaved');
+            
+            let websocket;
+            let mediaRecorder;
+            let audioContext;
+            let audioStream;
+            let isRecording = false;
+            let deepgramApiKey = '';
+            
+            // Check for saved API key in localStorage
+            if (localStorage.getItem('deepgramApiKey')) {
+                apiKeyInput.value = localStorage.getItem('deepgramApiKey');
+                deepgramApiKey = localStorage.getItem('deepgramApiKey');
+            }
+            
+            // Handle API key form submission
+            apiKeyForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                deepgramApiKey = apiKeyInput.value.trim();
+                
+                if (deepgramApiKey) {
+                    localStorage.setItem('deepgramApiKey', deepgramApiKey);
+                    apiKeySavedAlert.style.display = 'block';
+                    setTimeout(() => {
+                        apiKeySavedAlert.style.display = 'none';
+                    }, 3000);
+                }
+            });
+            
+            // Toggle API key visibility
+            toggleApiKeyBtn.addEventListener('click', function() {
+                if (apiKeyInput.type === 'password') {
+                    apiKeyInput.type = 'text';
+                    toggleApiKeyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye-slash" viewBox="0 0 16 16">
+                        <path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.944 5.944 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/>
+                        <path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829l.822.822zm-2.943 1.299.822.822a3.5 3.5 0 0 1-4.474-4.474l.823.823a2.5 2.5 0 0 0 2.829 2.829z"/>
+                        <path d="M3.35 5.47c-.18.16-.353.322-.518.487A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709zm10.296 8.884-12-12 .708-.708 12 12-.708.708z"/>
+                    </svg>`;
+                } else {
+                    apiKeyInput.type = 'password';
+                    toggleApiKeyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                        <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                        <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                    </svg>`;
+                }
+            });
+            
+            // Start recording
+            startButton.addEventListener('click', startRecording);
+            stopButton.addEventListener('click', stopRecording);
+            
+            async function startRecording() {
+                try {
+                    // Check if API key is available
+                    if (!deepgramApiKey) {
+                        alert('Please enter your Deepgram API key before recording.');
+                        apiKeyInput.focus();
+                        return;
+                    }
+                    
+                    // Initialize WebSocket connection with API key
+                    websocket = new WebSocket(`ws://${window.location.host}/ws?api_key=${encodeURIComponent(deepgramApiKey)}`);
+                    
+                    websocket.onopen = () => {
+                        statusText.textContent = 'Connected';
+                        
+                        // Request microphone access
+                        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+                            .then(stream => {
+                                audioStream = stream;
+                                audioContext = new AudioContext();
+                                
+                                // Setup audio processing
+                                const source = audioContext.createMediaStreamSource(stream);
+                                const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                                
+                                source.connect(processor);
+                                processor.connect(audioContext.destination);
+                                
+                                processor.onaudioprocess = function(e) {
+                                    if (isRecording && websocket.readyState === WebSocket.OPEN) {
+                                        // Convert to 16-bit PCM
+                                        const inputData = e.inputBuffer.getChannelData(0);
+                                        const output = new Int16Array(inputData.length);
+                                        
+                                        for (let i = 0; i < inputData.length; i++) {
+                                            const s = Math.max(-1, Math.min(1, inputData[i]));
+                                            output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                        }
+                                        
+                                        websocket.send(output.buffer);
+                                    }
+                                };
+                                
+                                // Update UI
+                                startButton.disabled = true;
+                                stopButton.disabled = false;
+                                recordingIndicator.style.display = 'inline-block';
+                                statusText.textContent = 'Recording...';
+                                isRecording = true;
+                            })
+                            .catch(err => {
+                                console.error('Error accessing microphone:', err);
+                                statusText.textContent = 'Microphone error!';
+                                alert('Error accessing microphone. Please check your permissions.');
+                            });
+                    };
+                    
+                    websocket.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            
+                            if (data.error) {
+                                console.error('WebSocket error:', data.error);
+                                return;
+                            }
+                            
+                            // Update transcript
+                            if (data.transcript) {
+                                transcriptBox.innerHTML = `<p>${data.transcript}</p>`;
+                                transcriptBox.scrollTop = transcriptBox.scrollHeight;
+                            }
+                            
+                            // Update depression score
+                            if (data.depression_score !== undefined) {
+                                const score = data.depression_score;
+                                scoreBar.style.width = `${score}%`;
+                                scoreText.textContent = `${score.toFixed(1)}%`;
+                                
+                                // Update color based on score
+                                scoreBar.className = '';
+                                if (score < 20) {
+                                    scoreBar.classList.add('low');
+                                } else if (score < 40) {
+                                    scoreBar.classList.add('mild');
+                                } else if (score < 60) {
+                                    scoreBar.classList.add('moderate');
+                                } else if (score < 80) {
+                                    scoreBar.classList.add('high');
+                                } else {
+                                    scoreBar.classList.add('severe');
+                                }
+                                
+                                // Update analysis results
+                                let resultsHTML = `<div class="mb-3">
+                                                    <h5>Depression Risk Level: <span class="badge ${getScoreBadgeClass(score)}">${data.depression_level}</span></h5>
+                                                  </div>`;
+                                
+                                if (data.features) {
+                                    const features = data.features;
+                                    
+                                    resultsHTML += `<div class="mb-2">
+                                                    <div class="feature-label">Key Observations:</div>
+                                                    <ul>`;
+                                    
+                                    // Add sentiment analysis
+                                    if (features.sentiment) {
+                                        const sentiment = features.sentiment;
+                                        resultsHTML += `<li>Emotional tone: ${getEmotionLabel(sentiment)}</li>`;
+                                    }
+                                    
+                                    // Add depression keywords if found
+                                    if (features.depression_keywords_found && features.depression_keywords_found.length > 0) {
+                                        resultsHTML += `<li>Depression-related terms detected: 
+                                                      <span class="text-danger">${features.depression_keywords_found.slice(0, 5).join(', ')}</span>
+                                                      ${features.depression_keywords_found.length > 5 ? `(and ${features.depression_keywords_found.length - 5} more)` : ''}
+                                                    </li>`;
+                                    }
+                                    
+                                    // Add self-focus observation
+                                    if (features.first_person_ratio > 0.15) {
+                                        resultsHTML += `<li>High self-focus detected in speech patterns</li>`;
+                                    }
+                                    
+                                    // Add speech rate observation if available
+                                    if (features.word_count < 10 && data.transcript.length > 20) {
+                                        resultsHTML += `<li>Slow speech rate detected</li>`;
+                                    }
+                                    
+                                    resultsHTML += `</ul></div>`;
+                                    
+                                    // Add recommendations based on score
+                                    resultsHTML += `<div class="mt-3 p-2 bg-white rounded">
+                                                    <div class="feature-label">Recommendations:</div>
+                                                    <ul>`;
+                                    
+                                    if (score >= 60) {
+                                        resultsHTML += `<li>Consider consulting a mental health professional</li>
+                                                      <li>This tool is not diagnostic but suggests potential concern</li>`;
+                                    } else if (score >= 40) {
+                                        resultsHTML += `<li>Consider monitoring mood patterns</li>
+                                                      <li>Practice self-care activities</li>`;
+                                    } else {
+                                        resultsHTML += `<li>Continue monitoring for any significant changes</li>`;
+                                    }
+                                    
+                                    resultsHTML += `</ul>
+                                                    <div class="mt-2 small text-muted">Note: This is an automated analysis and not a clinical diagnosis.</div>
+                                                  </div>`;
+                                }
+                                
+                                analysisResults.innerHTML = resultsHTML;
+                            }
+                        } catch (error) {
+                            console.error('Error parsing WebSocket message:', error);
+                        }
+                    };
+                    
+                    websocket.onclose = () => {
+                        statusText.textContent = 'Disconnected';
+                        stopRecording();
+                    };
+                    
+                    websocket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        statusText.textContent = 'Error!';
+                        stopRecording();
+                    };
+                    
+                } catch (error) {
+                    console.error('Failed to start recording:', error);
+                    alert('Failed to start recording: ' + error.message);
+                    statusText.textContent = 'Error!';
+                }
+            }
+            
+            function stopRecording() {
+                isRecording = false;
+                
+                // Stop media stream
+                if (audioStream) {
+                    audioStream.getTracks().forEach(track => track.stop());
+                    audioStream = null;
+                }
+                
+                // Close WebSocket
+                if (websocket && websocket.readyState === WebSocket.OPEN) {
+                    websocket.close();
+                }
+                
+                // Close AudioContext
+                if (audioContext) {
+                    audioContext.close();
+                    audioContext = null;
+                }
+                
+                // Update UI
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                recordingIndicator.style.display = 'none';
+                statusText.textContent = 'Ready';
+            }
+            
+            function getScoreBadgeClass(score) {
+                if (score < 20) return 'bg-success';
+                if (score < 40) return 'bg-warning text-dark';
+                if (score < 60) return 'bg-warning';
+                if (score < 80) return 'bg-danger';
+                return 'bg-purple';
+            }
+            
+            function getEmotionLabel(sentiment) {
+                const { pos, neg, neu } = sentiment;
+                if (neg > 0.5) return 'Very negative';
+                if (neg > 0.3) return 'Negative';
+                if (pos > 0.5) return 'Very positive';
+                if (pos > 0.3) return 'Positive';
+                return 'Neutral';
+            }
+        });
+    </script>
+</body>
+</html>
