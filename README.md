@@ -60,19 +60,53 @@ cp .env.example .env
 # Edit .env and add: DEEPGRAM_API_KEY=your_key_here
 ```
 
-## Usage
+## How to Run the Application
 
-1. Start the server:
+### Option 1: Using the Web Interface (Recommended)
+
+1. Start the web server:
 ```bash
-python app.py
+python run.py server
+# Or alternatively:
+python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
 2. Open your browser and navigate to http://localhost:8000
 
-3. Click the microphone button and speak. The system will:
-   - Transcribe your speech in real-time
+3. Enter your Deepgram API key in the field at the top and click "Save API Key"
+
+4. Click the microphone button and grant microphone access when prompted
+
+5. Speak naturally. The system will:
+   - Transcribe your speech in real-time using Deepgram Nova-3
    - Analyze the text for depression biomarkers
    - Display the depression risk score and analysis
+
+### Option 2: Using the CLI for Audio File Analysis
+
+1. Prepare an audio file (WAV format recommended) containing speech
+
+2. Run the analysis command:
+```bash
+python run.py analyze --file path/to/your/audio.wav
+# Or with explicit API key:
+python run.py analyze --file path/to/your/audio.wav --api-key YOUR_DEEPGRAM_API_KEY
+```
+
+3. View the analysis results in the terminal output
+
+### Option 3: Using Docker
+
+1. Make sure Docker and Docker Compose are installed on your system
+
+2. Build and start the container:
+```bash
+docker-compose up --build
+```
+
+3. Open your browser and navigate to http://localhost:8000
+
+4. Follow steps 3-5 from Option 1
 
 ## How It Works
 
